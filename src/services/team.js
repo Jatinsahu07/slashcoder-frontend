@@ -1,56 +1,104 @@
+// src/services/team.js
 import { db } from "../firebase";
 import {
-  addDoc, arrayUnion, arrayRemove, collection, deleteDoc, doc,
-  getDocs, query, updateDoc, where, serverTimestamp
+  addDoc, arrayUnion, arrayRemove,
+  collection, deleteDoc, doc,
+  getDoc, updateDoc, serverTimestamp
 } from "firebase/firestore";
 
-// Generate 6-char alphanumeric code
+// Generate 6-char code
 export function generateTeamCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  return Array.from({ length: 6 }, () =>
+    chars[Math.floor(Math.random() * chars.length)]
+  ).join("");
 }
 
-// Create a new team
+// ------------------------------------------------------
+// 🚀 CREATE TEAM
+// ------------------------------------------------------
 export async function createTeam(user, teamName) {
+  if (!user?.id) throw new Error("Invalid user");
+
   const code = generateTeamCode();
-  const teamRef = await addDoc(collection(db, "teams"), {
+  const username = user.username || "Player";
+
+  const ref = await addDoc(collection(db, "teams"), {
     name: teamName,
     code,
-    totalPoints: 0,
     createdAt: serverTimestamp(),
-    members: [{ userId: user.id, username: user.username }],
+    totalPoints: 0,
+    members: [{ userId: user.id, username }],
+    memberIds: [user.id],
   });
 
-  // update user profile teamId
-  await updateDoc(doc(db, "users", user.id), { teamId: teamRef.id });
-  return teamRef.id;
+  await updateDoc(doc(db, "users", user.id), { teamId: ref.id });
+
+  return ref.id;
 }
 
-// Join an existing team
+// ------------------------------------------------------
+// 🚀 JOIN TEAM
+// ------------------------------------------------------
 export async function joinTeam(user, teamId) {
+  if (!user?.id) throw new Error("Invalid user");
+
+  const username = user.username || "Player";
   const teamRef = doc(db, "teams", teamId);
-  const teamSnap = await getDocs(query(collection(db, "teams"), where("__name__", "==", teamId)));
-  if (teamSnap.empty) throw new Error("Team not found");
+  const teamSnap = await getDoc(teamRef);
 
-  const data = teamSnap.docs[0].data();
-  if (data.members.length >= 10) throw new Error("Team is full");
+  if (!teamSnap.exists()) throw new Error("Team not found");
 
-  await updateDoc(teamRef, { members: arrayUnion({ userId: user.id, username: user.username }) });
+  const team = teamSnap.data();
+  const ids = team.memberIds || [];
+
+  if (ids.includes(user.id)) {
+    // Already inside the team → just update user
+    await updateDoc(doc(db, "users", user.id), { teamId });
+    return;
+  }
+
+  if (ids.length >= 10) throw new Error("Team is full (10/10)");
+
+  await updateDoc(teamRef, {
+    members: arrayUnion({ userId: user.id, username }),
+    memberIds: arrayUnion(user.id),
+  });
+
   await updateDoc(doc(db, "users", user.id), { teamId });
 }
 
-// Leave team — delete if last member
+// ------------------------------------------------------
+// 🚀 LEAVE TEAM (delete if last member)
+// ------------------------------------------------------
 export async function leaveTeam(user) {
-  if (!user.teamId) return;
+  if (!user?.teamId) return;
 
-  const teamRef = doc(db, "teams", user.teamId);
-  const teamSnap = await getDocs(query(collection(db, "teams"), where("__name__", "==", user.teamId)));
-  const teamData = teamSnap.docs[0].data();
+  const teamId = user.teamId;
+  const username = user.username || "Player";
 
-  // remove from members
-  await updateDoc(teamRef, { members: arrayRemove({ userId: user.id, username: user.username }) });
+  const teamRef = doc(db, "teams", teamId);
+  const snap = await getDoc(teamRef);
+
+  if (!snap.exists()) {
+    await updateDoc(doc(db, "users", user.id), { teamId: null });
+    return;
+  }
+
+  const team = snap.data();
+  const memberIds = team.memberIds || [];
+  const members = team.members || [];
+
+  // Remove
+  await updateDoc(teamRef, {
+    memberIds: memberIds.filter((id) => id !== user.id),
+    members: members.filter((m) => m.userId !== user.id),
+  });
+
   await updateDoc(doc(db, "users", user.id), { teamId: null });
 
-  // if last one, delete team
-  if (teamData.members.length === 1) await deleteDoc(teamRef);
+  // Delete team if empty
+  if (memberIds.length === 1) {
+    await deleteDoc(teamRef);
+  }
 }
