@@ -1,12 +1,17 @@
 // src/services/team.js
 import { db } from "../firebase";
 import {
-  addDoc, arrayUnion, arrayRemove,
-  collection, deleteDoc, doc,
-  getDoc, updateDoc, serverTimestamp
+  addDoc,
+  arrayUnion,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  updateDoc,
+  serverTimestamp
 } from "firebase/firestore";
 
-// Generate 6-char code
+// Generate 6-char team code
 export function generateTeamCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 6 }, () =>
@@ -15,68 +20,66 @@ export function generateTeamCode() {
 }
 
 // ------------------------------------------------------
-// 🚀 CREATE TEAM
+// ✅ CREATE TEAM
 // ------------------------------------------------------
 export async function createTeam(user, teamName) {
   if (!user?.id) throw new Error("Invalid user");
 
-  const code = generateTeamCode();
   const username = user.username || "Player";
+  const code = generateTeamCode();
 
-  const ref = await addDoc(collection(db, "teams"), {
+  const teamRef = await addDoc(collection(db, "teams"), {
     name: teamName,
     code,
-    createdAt: serverTimestamp(),
     totalPoints: 0,
+    createdAt: serverTimestamp(),
     members: [{ userId: user.id, username }],
     memberIds: [user.id],
   });
 
-  await updateDoc(doc(db, "users", user.id), { teamId: ref.id });
-
-  return ref.id;
+  await updateDoc(doc(db, "users", user.id), { teamId: teamRef.id });
+  return teamRef.id;
 }
 
 // ------------------------------------------------------
-// 🚀 JOIN TEAM
+// ✅ JOIN TEAM
 // ------------------------------------------------------
 export async function joinTeam(user, teamId) {
   if (!user?.id) throw new Error("Invalid user");
 
   const username = user.username || "Player";
   const teamRef = doc(db, "teams", teamId);
-  const teamSnap = await getDoc(teamRef);
+  const snap = await getDoc(teamRef);
 
-  if (!teamSnap.exists()) throw new Error("Team not found");
+  if (!snap.exists()) throw new Error("Team not found");
 
-  const team = teamSnap.data();
+  const team = snap.data();
   const ids = team.memberIds || [];
 
   if (ids.includes(user.id)) {
-    // Already inside the team → just update user
+    // Already in team — just update profile
     await updateDoc(doc(db, "users", user.id), { teamId });
     return;
   }
 
   if (ids.length >= 10) throw new Error("Team is full (10/10)");
 
+  // SAFE atomic adds
   await updateDoc(teamRef, {
-    members: arrayUnion({ userId: user.id, username }),
-    memberIds: arrayUnion(user.id),
+    memberIds: [...ids, user.id],
+    members: [...(team.members || []), { userId: user.id, username }],
   });
 
   await updateDoc(doc(db, "users", user.id), { teamId });
 }
 
 // ------------------------------------------------------
-// 🚀 LEAVE TEAM (delete if last member)
+// ✅ LEAVE TEAM (delete if last member)
 // ------------------------------------------------------
 export async function leaveTeam(user) {
   if (!user?.teamId) return;
 
   const teamId = user.teamId;
-  const username = user.username || "Player";
-
   const teamRef = doc(db, "teams", teamId);
   const snap = await getDoc(teamRef);
 
@@ -86,19 +89,23 @@ export async function leaveTeam(user) {
   }
 
   const team = snap.data();
-  const memberIds = team.memberIds || [];
   const members = team.members || [];
+  const memberIds = team.memberIds || [];
 
-  // Remove
+  // SAFELY remove user
+  const newMembers = members.filter((m) => m.userId !== user.id);
+  const newMemberIds = memberIds.filter((id) => id !== user.id);
+
   await updateDoc(teamRef, {
-    memberIds: memberIds.filter((id) => id !== user.id),
-    members: members.filter((m) => m.userId !== user.id),
+    members: newMembers,
+    memberIds: newMemberIds,
   });
 
+  // Update user profile
   await updateDoc(doc(db, "users", user.id), { teamId: null });
 
-  // Delete team if empty
-  if (memberIds.length === 1) {
+  // DELETE team if empty (after removal)
+  if (newMemberIds.length === 0) {
     await deleteDoc(teamRef);
   }
 }
