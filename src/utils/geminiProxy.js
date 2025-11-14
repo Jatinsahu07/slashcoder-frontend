@@ -1,7 +1,9 @@
 // src/utils/geminiProxy.js
-import { API_BASE } from "../config";
+import { API_BASE } from "../config.js";
 
-// Ask Gemini (non-stream)
+// -----------------------------------------------------
+// 🤖 Ask Gemini (Non-Streaming)
+// -----------------------------------------------------
 export async function askGemini(prompt) {
   try {
     const res = await fetch(`${API_BASE}/ai/tutor`, {
@@ -11,6 +13,7 @@ export async function askGemini(prompt) {
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
     const data = await res.json();
     return data.response || "⚠️ Slash AI returned no response.";
   } catch (err) {
@@ -19,7 +22,9 @@ export async function askGemini(prompt) {
   }
 }
 
-// Streaming Gemini
+// -----------------------------------------------------
+// ⚡ Streaming Gemini 2.5 (Incremental Tokens)
+// -----------------------------------------------------
 export async function streamGemini(prompt, onChunk) {
   try {
     const res = await fetch(`${API_BASE}/ai/tutor/stream`, {
@@ -35,15 +40,15 @@ export async function streamGemini(prompt, onChunk) {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let fullText = "";
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      fullText += chunk;
-      onChunk(fullText);
+      const textChunk = decoder.decode(value, { stream: true });
+
+      // 🔥 Send incremental chunk to UI
+      onChunk(textChunk);
     }
   } catch (err) {
     console.error("Slash AI stream error:", err);
