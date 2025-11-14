@@ -1,10 +1,36 @@
 // src/config.js
 
-// Your Render backend (final)
-export const API_BASE = "https://slashcoder-backend.onrender.com";
+// -----------------------------------------
+// 🌍 BACKEND BASE URL
+// Priority:
+// 1. Vite/React env variable
+// 2. Production (Railway)
+// 3. Local development
+// -----------------------------------------
 
-// Socket.IO base (same backend)
-export const SOCKET_BASE = "https://slashcoder-backend.onrender.com";
+export const API_BASE =
+  import.meta.env.VITE_BACKEND_URL ||
+  process.env.REACT_APP_BACKEND_URL ||
+  "http://localhost:8000";
 
-// Gemini key from Vercel (optional)
-export const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || "";
+
+// -----------------------------------------
+// 🔥 SOCKET.IO BASE URL
+// Must be same as backend URL
+// -----------------------------------------
+
+export const SOCKET_BASE =
+  import.meta.env.VITE_SOCKET_URL ||
+  process.env.REACT_APP_SOCKET_URL ||
+  API_BASE;
+
+
+// -----------------------------------------
+// 🤖 Gemini API Key (Frontend Safe)
+// -----------------------------------------
+
+export const GEMINI_API_KEY =
+  import.meta.env.VITE_GEMINI_API_KEY ||
+  process.env.REACT_APP_GEMINI_API_KEY ||
+  "";
+
