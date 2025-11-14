@@ -1,21 +1,63 @@
-import { doc, increment, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, increment, serverTimestamp, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getBadge } from "@/utils/badges";   // you already created this
 
-// Call with { userId, result: 'win'|'loss'|'forfeit', baseWin=10, lossBonus=2, forfeitPenalty=5 }
-export async function applyMatchResult({ userId, result, baseWin = 10, lossBonus = 2, forfeitPenalty = 5 }) {
-  const ref = doc(db, 'users', userId);
-  const updates = { matchesPlayed: increment(1), lastMatchAt: serverTimestamp() };
+// Call applyMatchResult({ uid, didWin, didForfeit })
+export async function applyMatchResult({
+  userId,
+  result,                       // 'win' | 'loss' | 'forfeit'
+  winXP = 25,
+  lossXP = 10,
+  forfeitPenalty = 5,
+}) {
 
-  if (result === 'win') {
-    updates.totalWins = increment(1);
-    updates.totalPoints = increment(baseWin);
-  } else if (result === 'loss') {
-    updates.totalLosses = increment(1);
-    if (lossBonus > 0) updates.totalPoints = increment(lossBonus);
-  } else if (result === 'forfeit') {
-    updates.totalLosses = increment(1);
-    updates.totalPoints = increment(-Math.abs(forfeitPenalty));
+  const userRef = doc(db, "users", userId);
+
+  // XP logic
+  let xpDelta = 0;
+  if (result === "win") xpDelta = winXP;
+  else if (result === "loss") xpDelta = lossXP;
+  else xpDelta = -Math.abs(forfeitPenalty);
+
+  // Log the match
+  await addDoc(collection(db, "users", userId, "matches"), {
+    result,
+    xpGained: xpDelta,
+    time: serverTimestamp()
+  });
+
+  // Ensure XP never goes negative
+  const uSnap = await userRef.get?.() || null;
+
+  let currentXP = 0;
+  if (uSnap && uSnap.exists()) {
+    const data = uSnap.data();
+    currentXP = data.xp || 0;
   }
 
-  await updateDoc(ref, updates);
+  const newXP = Math.max(0, currentXP + xpDelta);
+  const newLevel = 1 + Math.floor(newXP / 100);
+
+  // Badge
+  const badge = getBadge(newXP);
+
+  const updates = {
+    lastMatchAt: serverTimestamp(),
+    xp: newXP,
+    level: newLevel,
+    badge: badge.tier,
+    totalPoints: increment(xpDelta),     // optional: for ranking
+  };
+
+  // wins/losses
+  if (result === "win") {
+    updates.wins = increment(1);
+  } else {
+    updates.losses = increment(1);
+  }
+
+  // apply updates
+  await updateDoc(userRef, updates);
+
+  return { newXP, newLevel, badge };
 }
