@@ -25,33 +25,34 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔥 Listen for auth changes + store token
   useEffect(() => {
+    let refresh = null;
+
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       setLoading(false);
 
       if (u) {
-        // save initial token
+        // store token
         const token = await u.getIdToken();
         localStorage.setItem("idToken", token);
 
-        // auto-refresh token every 5 min
-        const refresh = setInterval(async () => {
+        // refresh token every 5 mins
+        refresh = setInterval(async () => {
           const newToken = await u.getIdToken(true);
           localStorage.setItem("idToken", newToken);
         }, 5 * 60 * 1000);
-
-        return () => clearInterval(refresh);
       } else {
         localStorage.removeItem("idToken");
       }
     });
 
-    return () => unsub();
+    return () => {
+      if (refresh) clearInterval(refresh);
+      unsub();
+    };
   }, []);
 
-  // Show loading screen
   if (loading) {
     return (
       <div className="bg-black text-white h-screen flex items-center justify-center">
@@ -63,7 +64,6 @@ function App() {
   return (
     <Router>
       {!user ? (
-        // PUBLIC ROUTES
         <Routes>
           <Route path="/" element={<Signup />} />
           <Route path="/signup" element={<Signup />} />
@@ -71,16 +71,12 @@ function App() {
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       ) : (
-        // PRIVATE ROUTES
         <NavShell user={user}>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="/dashboard" element={<Dashboard />} />
-
-            {/* FIXED ROUTES */}
             <Route path="/find-match" element={<Matchmaking />} />
             <Route path="/match" element={<MatchPage />} />
-
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/teams" element={<TeamsPage />} />
             <Route path="/slashai" element={<SlashAI />} />
@@ -88,7 +84,6 @@ function App() {
             <Route path="/tournament" element={<TournamentPage />} />
             <Route path="/practice" element={<PracticeList />} />
             <Route path="/practice/:pid" element={<PracticeSolve />} />
-
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
         </NavShell>
