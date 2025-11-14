@@ -13,15 +13,11 @@ const api = axios.create({
 });
 
 // ----------------------------------------------------
-// 🔐 Auto-Attach Firebase Token (for protected routes)
+// 🔐 Auto-Attach Firebase Token
 // ----------------------------------------------------
-api.interceptors.request.use(async (config) => {
+api.interceptors.request.use((config) => {
   const token = localStorage.getItem("idToken");
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
@@ -37,7 +33,7 @@ api.interceptors.response.use(
 );
 
 // ----------------------------------------------------
-// 🔹 AUTH ENDPOINTS
+// 🔹 AUTH
 // ----------------------------------------------------
 export const signupUser = async (email, password) => {
   const response = await api.post("/auth/signup", { email, password });
@@ -50,19 +46,18 @@ export const verifyToken = async () => {
 };
 
 // ----------------------------------------------------
-// 🤖 AI Tutor Endpoints
+// 🤖 AI Tutor (normal response)
 // ----------------------------------------------------
 export const aiTutor = async (prompt) => {
   const res = await api.post("/ai/tutor", { prompt });
   return res.data;
 };
 
-export const aiTutorStream = (prompt) => {
-  return `${API_BASE}/ai/tutor/stream?prompt=${encodeURIComponent(prompt)}`;
-};
+// ❗ Removed aiTutorStream URL builder (wrong for POST).
+// Use geminiProxy.js for streaming.
 
 // ----------------------------------------------------
-// 🧠 PRACTICE Endpoints
+// 🧠 PRACTICE
 // ----------------------------------------------------
 export const getPracticeProblems = async () => {
   const res = await api.get("/api/practice/problems");
@@ -80,7 +75,7 @@ export const submitPracticeCode = async (payload) => {
 };
 
 // ----------------------------------------------------
-// 🏆 STATS Endpoints
+// 🏆 STATS
 // ----------------------------------------------------
 export const updateStats = async (payload) => {
   const res = await api.post("/api/update-stats", payload);
@@ -88,7 +83,7 @@ export const updateStats = async (payload) => {
 };
 
 // ----------------------------------------------------
-// 🧑‍💼 PROFILE Endpoints
+// 🧑‍💼 PROFILE
 // ----------------------------------------------------
 export const getProfile = async (uid) => {
   const res = await api.get(`/profile/${uid}`);
@@ -103,5 +98,4 @@ export const runJudgeCode = async (payload) => {
   return res.data;
 };
 
-// ----------------------------------------------------
 export default api;
