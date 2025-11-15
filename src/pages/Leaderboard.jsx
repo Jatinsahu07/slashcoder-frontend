@@ -61,15 +61,17 @@ function ProgressBar({ level = 0, xpPercent = 0 }) {
 }
 
 export default function LeaderboardPage() {
-  const raw = useAppStore((s) => s.leaderboard) || [];
+  const leaderboardState = useAppStore((s) => s.leaderboard);
   const [page, setPage] = useState(0);
   const currentUid = auth.currentUser?.uid;
 
+  // FIXED: raw fallback happens inside useMemo → no eslint warning
   const data = useMemo(() => {
+    const raw = leaderboardState || [];
     const clone = [...raw];
     clone.sort((a, b) => (b?.xp ?? 0) - (a?.xp ?? 0));
     return clone;
-  }, [raw]);
+  }, [leaderboardState]);
 
   const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
   const start = page * PAGE_SIZE;
