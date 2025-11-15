@@ -2,11 +2,27 @@
 import { API_BASE } from "../config";
 
 // -----------------------------------------------------
+// ✅ Helper: Safe URL Builder
+// -----------------------------------------------------
+function buildURL(endpoint) {
+  if (!API_BASE || API_BASE === "undefined") {
+    console.error("❌ API_BASE is undefined — Slash AI cannot connect.");
+    return null;
+  }
+  return `${API_BASE}${endpoint}`;
+}
+
+// -----------------------------------------------------
 // 🤖 Ask Gemini (Non-Streaming)
 // -----------------------------------------------------
 export async function askGemini(prompt) {
+  const url = buildURL("/ai/tutor");
+  if (!url) return "⚠️ Slash AI backend unavailable.";
+
   try {
-    const res = await fetch(`${API_BASE}/ai/tutor`, {
+    console.log("📤 Sending to Slash AI:", url);
+
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
@@ -23,16 +39,25 @@ export async function askGemini(prompt) {
 }
 
 // -----------------------------------------------------
-// ⚡ Streaming Gemini 2.5 (Incremental Tokens)
+// ⚡ Streaming Gemini (Incremental Tokens)
 // -----------------------------------------------------
 export async function streamGemini(prompt, onChunk) {
+  const url = buildURL("/ai/tutor/stream");
+  if (!url) {
+    onChunk("⚠️ Slash AI backend unavailable.");
+    return;
+  }
+
   try {
-    const res = await fetch(`${API_BASE}/ai/tutor/stream`, {
+    console.log("📤 Streaming from Slash AI:", url);
+
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
     });
 
+    // No streaming available
     if (!res.body) {
       onChunk("⚠️ No stream body from server.");
       return;
@@ -47,8 +72,10 @@ export async function streamGemini(prompt, onChunk) {
 
       const textChunk = decoder.decode(value, { stream: true });
 
-      // 🔥 Send incremental chunk to UI
-      onChunk(textChunk);
+      // Only process if chunk has content
+      if (textChunk?.trim()) {
+        onChunk(textChunk);
+      }
     }
   } catch (err) {
     console.error("Slash AI stream error:", err);
