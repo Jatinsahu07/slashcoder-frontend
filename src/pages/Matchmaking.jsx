@@ -72,7 +72,8 @@ export default function Matchmaking() {
       // ------------------------------------------------------
       // 🔥 FIX: navigate to match page
       // ------------------------------------------------------
-      navigate("/matchpage", { state: data });
+      navigate("/match", { state: data });
+
     };
 
     socket.on("connect", handleConnect);
