@@ -1,6 +1,6 @@
 // src/api.js
 import axios from "axios";
-import { API_BASE } from "./config.js";
+import { API_BASE } from "./config";
 
 // ----------------------------------------------------
 // 🌍 Axios Instance — Unified API client
