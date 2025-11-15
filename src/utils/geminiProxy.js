@@ -1,5 +1,5 @@
 // src/utils/geminiProxy.js
-import { API_BASE } from "../config.js";
+import { API_BASE } from "../config";
 
 // -----------------------------------------------------
 // 🤖 Ask Gemini (Non-Streaming)
