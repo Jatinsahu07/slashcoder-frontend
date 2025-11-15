@@ -130,23 +130,9 @@ export default function MatchPage() {
         }));
       } catch (e) {}
     } else {
-      // attempt restore from localStorage (refresh case)
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const stored = JSON.parse(raw);
-          if (stored && stored.room) {
-            setRoom(stored.room);
-            setProblem(stored.problem);
-            setOpponent(stored.opponent);
-            setTimeLimit(stored.timeLimit ?? 600);
-            setStartTime(stored.startTime ?? Math.floor(Date.now()/1000));
-            setInBattle(true);
-            startTimerFromStart(stored.timeLimit ?? 600, stored.startTime ?? Math.floor(Date.now()/1000));
-          }
-        }
-      } catch (e) { /* ignore */ }
-    }
+        localStorage.removeItem(STORAGE_KEY);
+}
+     
 
     return () => {
       socket.off("connect", onConnect);
