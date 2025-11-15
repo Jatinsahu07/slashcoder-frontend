@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Editor from "@monaco-editor/react";
+import { API_BASE } from "../config";
+
 
 /* 🛡️ Function to disable copy/paste/cut and right-click inside Monaco editor */
 const preventEditorCopyPaste = (editor) => {
@@ -69,7 +71,7 @@ const CodeEditor = ({ onRun }) => {
   const handleRun = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/code/run", {
+      const res = await fetch(`${API_BASE}/code/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
