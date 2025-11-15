@@ -75,7 +75,7 @@ const CodeEditor = ({ onRun }) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code,
+          source_code: code,
           language_id:
             language === "python"
               ? 71
