@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from "react";
+// src/pages/ChatRooms.jsx
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { auth, db } from "../firebase";
 import {
   collection,
@@ -22,6 +23,7 @@ const DEFAULT_ROOMS = [
 
 export default function ChatRooms() {
   const user = auth.currentUser;
+
   const [currentRoom, setCurrentRoom] = useState("python-room");
   const [messages, setMessages] = useState([]);
   const [newMsg, setNewMsg] = useState("");
@@ -29,7 +31,28 @@ export default function ChatRooms() {
   const [activeUsers, setActiveUsers] = useState([]);
   const bottomRef = useRef(null);
 
-  // 🧠 Join a room
+  // -------------------------------------------------------
+  // 📌 Add message to Firestore (memoized + stable)
+  // -------------------------------------------------------
+  const addMessageToFirestore = useCallback(
+    async (roomId, data) => {
+      try {
+        await addDoc(collection(db, "rooms", roomId, "messages"), {
+          senderId: data.senderId || user?.uid,
+          senderName: data.senderName || user?.displayName || "Anonymous",
+          text: data.text,
+          ts: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error("Error saving message:", err);
+      }
+    },
+    [user]
+  );
+
+  // -------------------------------------------------------
+  // 🔥 Join a room + Socket listeners
+  // -------------------------------------------------------
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
@@ -39,7 +62,11 @@ export default function ChatRooms() {
     socket.emit("get_active_users", { roomId: currentRoom });
 
     socket.on("system_message", (msg) => console.log("System:", msg));
-    socket.on("receive_message", (data) => addMessageToFirestore(data.roomId, data));
+
+    socket.on("receive_message", (data) => {
+      addMessageToFirestore(data.roomId, data);
+    });
+
     socket.on("active_users", (users) => setActiveUsers(users));
 
     setStatus(`💬 Joined ${currentRoom}`);
@@ -49,52 +76,54 @@ export default function ChatRooms() {
       socket.off("system_message");
       socket.off("active_users");
     };
-  }, [currentRoom]);
+  }, [currentRoom, addMessageToFirestore, user]);
 
-  // 🔥 Listen to Firestore for messages
+  // -------------------------------------------------------
+  // 📡 Firestore listener (messages)
+  // -------------------------------------------------------
   useEffect(() => {
-    const q = query(collection(db, "rooms", currentRoom, "messages"), orderBy("ts", "asc"));
+    const q = query(
+      collection(db, "rooms", currentRoom, "messages"),
+      orderBy("ts", "asc")
+    );
+
     const unsub = onSnapshot(q, (snap) => {
       const msgs = [];
       snap.forEach((d) => msgs.push({ id: d.id, ...d.data() }));
       setMessages(msgs);
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     });
+
     return () => unsub();
   }, [currentRoom]);
 
-  // 📩 Add message to Firestore
-  const addMessageToFirestore = async (roomId, data) => {
-    try {
-      await addDoc(collection(db, "rooms", roomId, "messages"), {
-        senderId: data.senderId || user?.uid,
-        senderName: data.senderName || user?.displayName || "Anonymous",
-        text: data.text,
-        ts: serverTimestamp(),
-      });
-    } catch (err) {
-      console.error("Error saving message:", err);
-    }
-  };
-
-  // 🧾 Send message
+  // -------------------------------------------------------
+  // 📝 Send message
+  // -------------------------------------------------------
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMsg.trim()) return;
+
     const msgData = {
       roomId: currentRoom,
       senderId: user?.uid,
       senderName: user?.displayName || user?.email || "Anonymous",
       text: newMsg.trim(),
     };
+
     socket.emit("send_message", msgData);
     await addMessageToFirestore(currentRoom, msgData);
+
     setNewMsg("");
   };
 
-  // ❌ Delete message (only by sender)
+  // -------------------------------------------------------
+  // ❌ Delete message
+  // -------------------------------------------------------
   const handleDelete = async (id, senderId) => {
-    if (senderId !== user?.uid) return alert("You can only delete your own messages!");
+    if (senderId !== user?.uid)
+      return alert("You can only delete your own messages!");
+
     try {
       await deleteDoc(doc(db, "rooms", currentRoom, "messages", id));
     } catch (err) {
@@ -102,6 +131,9 @@ export default function ChatRooms() {
     }
   };
 
+  // -------------------------------------------------------
+  // UI
+  // -------------------------------------------------------
   return (
     <div
       className="relative min-h-screen overflow-hidden text-white"
@@ -116,7 +148,9 @@ export default function ChatRooms() {
       <div className="relative z-10 flex h-screen">
         {/* Sidebar */}
         <aside className="w-64 bg-white/5 border-r border-white/10 p-5 flex flex-col">
-          <h2 className="text-xl font-extrabold text-[#ff4655] mb-4">💬 Slashcoder Rooms</h2>
+          <h2 className="text-xl font-extrabold text-[#ff4655] mb-4">
+            💬 Slashcoder Rooms
+          </h2>
 
           <div className="flex flex-col space-y-2">
             {DEFAULT_ROOMS.map((r) => (
@@ -139,6 +173,7 @@ export default function ChatRooms() {
             <div className="flex items-center gap-2 mb-2 text-sm text-white/60">
               <Users className="w-4 h-4" /> Active Users ({activeUsers.length})
             </div>
+
             <ul className="space-y-1 text-sm text-white/80">
               {activeUsers.map((u, i) => (
                 <li
@@ -148,6 +183,7 @@ export default function ChatRooms() {
                   {u}
                 </li>
               ))}
+
               {activeUsers.length === 0 && (
                 <li className="text-white/50 text-xs">No active users.</li>
               )}
@@ -184,8 +220,11 @@ export default function ChatRooms() {
                     }`}
                   >
                     {!mine && (
-                      <div className="text-xs text-white/70 mb-1">{m.senderName}</div>
+                      <div className="text-xs text-white/70 mb-1">
+                        {m.senderName}
+                      </div>
                     )}
+
                     <div className="text-sm leading-relaxed">{m.text}</div>
 
                     {/* Delete Button */}
@@ -202,11 +241,15 @@ export default function ChatRooms() {
                 );
               })
             )}
+
             <div ref={bottomRef} />
           </div>
 
           {/* Input */}
-          <form onSubmit={sendMessage} className="p-4 border-t border-white/10 flex gap-3 bg-white/5">
+          <form
+            onSubmit={sendMessage}
+            className="p-4 border-t border-white/10 flex gap-3 bg-white/5"
+          >
             <input
               type="text"
               value={newMsg}
@@ -214,6 +257,7 @@ export default function ChatRooms() {
               placeholder="Type your message..."
               className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-1 focus:ring-[#ff4655]"
             />
+
             <button
               type="submit"
               className="flex items-center gap-2 bg-[#ff4655]/90 hover:bg-[#ff4655] px-4 py-2 rounded-lg text-sm font-semibold transition"
