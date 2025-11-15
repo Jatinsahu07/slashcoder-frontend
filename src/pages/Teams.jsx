@@ -129,9 +129,9 @@ export default function TeamsPage() {
       offMsgs && offMsgs();
       offMatches && offMatches();
     };
-  }, [teamId, chatOpen, db]);
+  }, [teamId, chatOpen]);
 
-  // 🔹 Actions (create/join/leave/send)
+  // 🔹 Actions
   async function createTeam() {
     if (!uid) return setErr("Login required");
     const name = newTeamName.trim();
@@ -234,12 +234,12 @@ export default function TeamsPage() {
     navigator.clipboard.writeText(team.id).catch(() => {});
   }
 
-  // 🔹 Derived
+  // 🔹 Derived values
   const memberCount = members.length;
   const teamPoints = team?.totalPoints || 0;
   const teamLevel = levelFromPoints(teamPoints);
   const iAmMember = !!teamId && !!members.find((m) => m.userId === uid);
-  const iAmOwner = team?.ownerId === uid;
+
   const sortedMembers = useMemo(() => (members || []).slice(), [members]);
 
   return (
@@ -264,7 +264,11 @@ export default function TeamsPage() {
           </p>
         </div>
 
-        {err && <div className="bg-[#ff4655]/20 border border-[#ff4655]/40 p-3 rounded-xl text-sm text-center">{err}</div>}
+        {err && (
+          <div className="bg-[#ff4655]/20 border border-[#ff4655]/40 p-3 rounded-xl text-sm text-center">
+            {err}
+          </div>
+        )}
 
         {/* Team dashboard or creation */}
         {iAmMember && team ? (
@@ -345,9 +349,7 @@ export default function TeamsPage() {
                         <div
                           key={m.id}
                           className={`p-2 rounded-md max-w-[70%] ${
-                            mine
-                              ? "ml-auto bg-[#ff4655]/30 text-right"
-                              : "bg-white/10"
+                            mine ? "ml-auto bg-[#ff4655]/30 text-right" : "bg-white/10"
                           }`}
                         >
                           {!mine && <div className="text-xs text-white/70">{m.senderName}</div>}
@@ -357,6 +359,7 @@ export default function TeamsPage() {
                     })}
                     <div ref={bottomRef} />
                   </div>
+
                   <form onSubmit={sendMessage} className="flex mt-3 gap-2">
                     <input
                       className="flex-1 bg-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-white/50 outline-none"
@@ -404,7 +407,7 @@ export default function TeamsPage() {
           </>
         ) : (
           <>
-            {/* Not in a team → Create/Join */}
+            {/* Create/Join */}
             <div className="grid sm:grid-cols-2 gap-6">
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
                 <h3 className="text-lg font-semibold text-[#ff4655] mb-3">Create a Team</h3>
